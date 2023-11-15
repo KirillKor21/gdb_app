@@ -12,15 +12,14 @@
 #include <QSignalMapper>
 #include <QSpacerItem>
 
-MainWindow::MainWindow(QWidget *parent)
-    : QMainWindow(parent)
-    , ui(new Ui::MainWindow)
+MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::MainWindow)
 {
     ui->setupUi(this);
 }
 
 MainWindow::~MainWindow()
 {
+    //sshProcess.kill();
     delete ui;
 }
 
@@ -109,18 +108,14 @@ int MainWindow::ssh_connection()
 
 int MainWindow::show_mainwindow()
 {
-
     return 0;
 }
-
-
 
 void MainWindow::delay(int time_to_wait_mlsec)
 {
     QCoreApplication::processEvents();
     QThread::msleep(time_to_wait_mlsec);
 }
-
 
 void MainWindow::on_attach_to_process_btn_triggered()
 {
@@ -227,7 +222,7 @@ QWidget* MainWindow::create_widget_process(int id)
     QLabel *User = new QLabel(list_of_processes[id][1]);
     QLabel *Name = new QLabel(list_of_processes[id][2]);
 
-    //Создание кнопки присоеденение
+    //Создание кнопки присоединение
     QPushButton *current_widget_btn = new QPushButton("attach");
 
     //Сигналы на передачу данных от кнопок
@@ -259,13 +254,109 @@ int MainWindow::attach_to_process(int id)
     return 0;
 }
 
+// Запуск gdb и заполнение виджетов
+int MainWindow::start_gdb(QString program)
+{
+    text_output = new QLabel();
 
+    // Запуск gdb
+    QString current_command = "gdb " + program;
+    QString current_response = request_to_gdb_server(current_command);
+
+    // Запуск программы/процесса в gdb
+    current_command = "start";
+    current_response = request_to_gdb_server(current_command);
+
+    // парсинг ответа
+    current_response = current_response.replace("(gdb)", "");
+
+    // Отображение информации по запуску в поле Output
+    text_output->setText(current_response);
+    ui->scroll_area_output->setWidget(text_output);
+
+    // Заполнение виджетов
+    add_data_to_disassembled_listing();
+    add_data_to_registers();
+
+    return 0;
+}
+
+// Получение дизассемблированного листинга
+int MainWindow::add_data_to_disassembled_listing()
+{
+    // передача команды в gdb на получение дизассемблированного листинга
+    QString current_command = "disassemble";
+    QString current_response = request_to_gdb_server(current_command);
+
+    // Создание таблицы для отображения ответа от gdb
+    QTableWidget* table = new QTableWidget();
+    table->setColumnCount(2);
+    table->setRowCount(current_response.count("\n") - 2);
+    table->setHorizontalHeaderLabels(QStringList() << "Address" << "Assembly");
+    table->verticalHeader()->setVisible(false);
+    table->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);
+    //table->verticalHeader()->setStretchLastSection(true);
+    table->setEditTriggers(QAbstractItemView::NoEditTriggers);
+    table->setShowGrid(false);
+
+    // удаление лишней информации из ответа от gdb
+    int ind = current_response.indexOf("=>");
+    current_response = current_response.remove(0, ind + 2);
+    ind = current_response.indexOf("End");
+    current_response = current_response.remove(ind, current_response.length());
+
+    // парсинг ответа от gdb
+    QStringList list = current_response.split(QRegularExpression("[\t\n]"));
+    for (int i = 0; i < list.length() - 1; i++)
+        table->setItem(i / 2, i % 2, new QTableWidgetItem(list[i].trimmed()));
+
+    // отображение ответа от gdb
+    ui->scroll_area_disassembled_listing->setWidget(table);
+
+    return 0;
+}
+
+// Получение информации о регистрах
+int MainWindow::add_data_to_registers()
+{
+    // передача команды в gdb на получение информации о регистрах
+    QString current_command = "i r";
+    QString current_response = request_to_gdb_server(current_command);
+
+    // Создание таблицы для отображения ответа от gdb
+    QTableWidget* table = new QTableWidget();
+    table->setColumnCount(3);
+    table->setRowCount(current_response.count("\n"));
+    table->setHorizontalHeaderLabels(QStringList() << "Register" << "Value" << "Address");
+    table->verticalHeader()->setVisible(false);
+    table->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);
+    //table->verticalHeader()->setStretchLastSection(true);
+    table->setEditTriggers(QAbstractItemView::NoEditTriggers);
+    table->setShowGrid(false);
+
+    // удаление лишней информации из ответа от gdb
+    current_response.replace("(gdb)", "");
+    while (current_response.indexOf("   ") != -1)
+            current_response.replace("   ", "  ");
+    current_response.replace("  ", "\t");
+
+    // парсинг ответа от gdb
+    QStringList list = current_response.split(QRegularExpression("[\t\n]"));
+    qDebug() << list;
+    for (int i = 0; i < list.length() - 1; i++)
+        table->setItem(i / 3, i % 3, new QTableWidgetItem(list[i]));
+
+    // вывод информации на виджет
+    ui->scroll_area_registers->setWidget(table);
+
+    return 0;
+}
 
 
 
 int MainWindow::add_data_to_console(QString data) {
 
-    ui->label->setText(data);
+    //ui->label->setText(data);
 
     return 0;
 }
@@ -285,5 +376,116 @@ QString MainWindow::request_to_gdb_server(QString request)
 
     return response;
 }
+
+
+//выбор файла
+//gdb a.out -ex 'start' -ex 'disassemble'
+//gdb a.out -ex 'start' -ex 'i r'
+
+void MainWindow::on_actionOpen_executable_triggered()
+{
+    show_open_executable_window();
+}
+
+// Создание файлового менеджера
+int MainWindow::show_open_executable_window()
+{
+    qDebug() << "Функция - show_open_executable_window \n";
+
+    //Создание окна файлового менеджера
+    open_executable_window = new QWidget();
+    open_executable_window->setWindowTitle("Open executable");
+    open_executable_window->setGeometry(630,320,500,200);
+
+    scroll_area_for_executable = new QScrollArea();
+    scroll_area_for_executable->setWidgetResizable(true);
+
+    table_for_executable = new QTableWidget();
+    connect(table_for_executable, SIGNAL(cellDoubleClicked(int, int)), this, SLOT(openSelected(int, int)));
+
+    // Задание параметров таблицы
+    table_for_executable->setColumnCount(3);
+    table_for_executable->verticalHeader()->setVisible(false);
+    table_for_executable->horizontalHeader()->setVisible(false);
+    table_for_executable->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);
+    table_for_executable->setEditTriggers(QAbstractItemView::NoEditTriggers);
+    table_for_executable->setShowGrid(false);
+
+    // Получение данных и заполнение таблицы
+    get_data_to_table_for_executable("");
+
+    // Добавление таблицы в скрол арену
+    scroll_area_for_executable->setWidget(table_for_executable);
+
+    //Создание главного лайаута и добавление в него скрол арены
+    QVBoxLayout *main_layout = new QVBoxLayout();
+    main_layout->addWidget(scroll_area_for_executable);
+
+    //Добавление главного лайаута в основное окно показа процессов
+    open_executable_window->setLayout(main_layout);
+
+    //Отображение окна
+    open_executable_window->show();
+
+    return 0;
+}
+
+int MainWindow::add_data_to_table_for_executable(QString data)
+{
+    table_for_executable->clear();
+
+    table_for_executable->setRowCount(data.count("\n") / 3 + 1);
+
+    QStringList list = ("⮌\n" + data).split("\n");
+    for (int i = 0; i < list.length() - 1; i++)
+        table_for_executable->setItem(i / 3, i % 3, new QTableWidgetItem(list[i]));
+
+    return 0;
+}
+
+void MainWindow::get_data_to_table_for_executable(QString dir)
+{
+    // Переход в директорию и получение списка файлов
+    QString current_command = "cd " + dir + "&& ls -a";
+    QString current_response = request_to_gdb_server(current_command);
+    qDebug() << "cd" << current_response;
+
+    // Проверка директории на пустоту
+    if (current_response != ".\n..\n") {
+        current_command = "ls";
+        current_response = request_to_gdb_server(current_command);
+        qDebug() << current_response;
+    } else current_response = "";
+
+    // Заполнение таблицы
+    add_data_to_table_for_executable(current_response);
+}
+
+// Открытие файлов по двойному клику
+void MainWindow::openSelected(int nRow, int nCol)
+{
+    QString value = table_for_executable->item(nRow, nCol)->text();
+    if (value == "⮌") {
+        get_data_to_table_for_executable("..");
+    }
+    if (value.indexOf(".") == -1) {
+        get_data_to_table_for_executable(value);
+    }
+    if (value.indexOf(".out") != -1) {
+        open_executable_window->hide();
+        start_gdb(value);
+    }
+}
+
+void MainWindow::on_btn_send_clicked()
+{
+    QString current_command = ui->line_command->text();
+    QString current_response = request_to_gdb_server(current_command);
+    text_output->setText(text_output->text() + current_response);
+    qDebug() << current_response;
+
+    ui->line_command->setText("");
+}
+
 
 

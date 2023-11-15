@@ -11,6 +11,9 @@
 #include <QVector>
 #include <QSignalMapper>
 #include <QScrollArea>
+#include <QTableWidget>
+#include <QHeaderView>
+#include <QRegularExpression>
 
 QT_BEGIN_NAMESPACE
 namespace Ui { class MainWindow; }
@@ -40,6 +43,7 @@ private:
 
     QLabel *host_label;
     QLabel *user_label;
+    QLabel* text_output;
 
     QLineEdit *host_line_input;
     QLineEdit *user_name_line_input;
@@ -61,7 +65,13 @@ private:
 
     QVector<QVector<QString>> list_of_processes; //Двумерный массив хранит в себе процессы, в виде PID User Name
 
-    QSignalMapper *process_attach_mapper;//отслеживание кнопки копирования логина
+    QSignalMapper *process_attach_mapper;//отслеживание кнопки копирования
+
+    // Окно файлового менеджера
+    QWidget* open_executable_window;
+    QScrollArea* scroll_area_for_executable;
+    QTableWidget* table_for_executable;
+    QString path_to_executable = "/";
 
     Ui::MainWindow *ui;
 
@@ -74,6 +84,14 @@ private slots:
 
     int show_attach_to_process_window();
 
+    int show_open_executable_window();
+
+    int add_data_to_table_for_executable(QString data);
+
+    void get_data_to_table_for_executable(QString value);
+
+    void openSelected(int nRow, int nCol);
+
     int get_processes();
 
     QWidget *create_widget_process(int id);
@@ -83,5 +101,14 @@ private slots:
     int add_data_to_console(QString data);
 
     QString request_to_gdb_server(QString response);
+
+    int add_data_to_disassembled_listing();
+
+    int add_data_to_registers();
+
+    int start_gdb(QString program);
+
+    void on_actionOpen_executable_triggered();
+    void on_btn_send_clicked();
 };
 #endif // MAINWINDOW_H
