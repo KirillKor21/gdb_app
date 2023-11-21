@@ -228,7 +228,6 @@
     </property>
     <addaction name="attach_to_process_btn"/>
     <addaction name="actionOpen_executable"/>
-    <addaction name="actionOpen_source"/>
    </widget>
    <addaction name="menuFile"/>
   </widget>
