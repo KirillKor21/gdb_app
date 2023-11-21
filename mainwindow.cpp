@@ -281,6 +281,22 @@ int MainWindow::start_gdb(QString program)
     return 0;
 }
 
+// Остановка gdb и очистка виджетов
+int MainWindow::stop_gdb(){
+    QString current_command = "quit";
+    QString current_response = request_to_gdb_server(current_command);
+    current_command = "Y";
+    current_response = request_to_gdb_server(current_command);
+
+    table_disassembled_listing->clear();
+    table_disassembled_listing->setHorizontalHeaderLabels(QStringList() << "Address" << "Assembly");
+    table_registers->clear();
+    table_registers->setHorizontalHeaderLabels(QStringList() << "Register" << "Value" << "Address");
+    text_output->setText("");
+
+    return 0;
+}
+
 // Получение дизассемблированного листинга
 int MainWindow::add_data_to_disassembled_listing()
 {
@@ -289,15 +305,15 @@ int MainWindow::add_data_to_disassembled_listing()
     QString current_response = request_to_gdb_server(current_command);
 
     // Создание таблицы для отображения ответа от gdb
-    QTableWidget* table = new QTableWidget();
-    table->setColumnCount(2);
-    table->setRowCount(current_response.count("\n") - 2);
-    table->setHorizontalHeaderLabels(QStringList() << "Address" << "Assembly");
-    table->verticalHeader()->setVisible(false);
-    table->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);
+    table_disassembled_listing = new QTableWidget();
+    table_disassembled_listing->setColumnCount(2);
+    table_disassembled_listing->setRowCount(current_response.count("\n") - 2);
+    table_disassembled_listing->setHorizontalHeaderLabels(QStringList() << "Address" << "Assembly");
+    table_disassembled_listing->verticalHeader()->setVisible(false);
+    table_disassembled_listing->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);
     //table->verticalHeader()->setStretchLastSection(true);
-    table->setEditTriggers(QAbstractItemView::NoEditTriggers);
-    table->setShowGrid(false);
+    table_disassembled_listing->setEditTriggers(QAbstractItemView::NoEditTriggers);
+    table_disassembled_listing->setShowGrid(false);
 
     // удаление лишней информации из ответа от gdb
     int ind = current_response.indexOf("=>");
@@ -308,10 +324,10 @@ int MainWindow::add_data_to_disassembled_listing()
     // парсинг ответа от gdb
     QStringList list = current_response.split(QRegularExpression("[\t\n]"));
     for (int i = 0; i < list.length() - 1; i++)
-        table->setItem(i / 2, i % 2, new QTableWidgetItem(list[i].trimmed()));
+        table_disassembled_listing->setItem(i / 2, i % 2, new QTableWidgetItem(list[i].trimmed()));
 
     // отображение ответа от gdb
-    ui->scroll_area_disassembled_listing->setWidget(table);
+    ui->scroll_area_disassembled_listing->setWidget(table_disassembled_listing);
 
     return 0;
 }
@@ -324,15 +340,15 @@ int MainWindow::add_data_to_registers()
     QString current_response = request_to_gdb_server(current_command);
 
     // Создание таблицы для отображения ответа от gdb
-    QTableWidget* table = new QTableWidget();
-    table->setColumnCount(3);
-    table->setRowCount(current_response.count("\n"));
-    table->setHorizontalHeaderLabels(QStringList() << "Register" << "Value" << "Address");
-    table->verticalHeader()->setVisible(false);
-    table->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);
+    table_registers = new QTableWidget();
+    table_registers->setColumnCount(3);
+    table_registers->setRowCount(current_response.count("\n"));
+    table_registers->setHorizontalHeaderLabels(QStringList() << "Register" << "Value" << "Address");
+    table_registers->verticalHeader()->setVisible(false);
+    table_registers->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);
     //table->verticalHeader()->setStretchLastSection(true);
-    table->setEditTriggers(QAbstractItemView::NoEditTriggers);
-    table->setShowGrid(false);
+    table_registers->setEditTriggers(QAbstractItemView::NoEditTriggers);
+    table_registers->setShowGrid(false);
 
     // удаление лишней информации из ответа от gdb
     current_response.replace("(gdb)", "");
@@ -344,14 +360,13 @@ int MainWindow::add_data_to_registers()
     QStringList list = current_response.split(QRegularExpression("[\t\n]"));
     qDebug() << list;
     for (int i = 0; i < list.length() - 1; i++)
-        table->setItem(i / 3, i % 3, new QTableWidgetItem(list[i]));
+        table_registers->setItem(i / 3, i % 3, new QTableWidgetItem(list[i]));
 
     // вывод информации на виджет
-    ui->scroll_area_registers->setWidget(table);
+    ui->scroll_area_registers->setWidget(table_registers);
 
     return 0;
 }
-
 
 
 int MainWindow::add_data_to_console(QString data) {
@@ -376,11 +391,6 @@ QString MainWindow::request_to_gdb_server(QString request)
 
     return response;
 }
-
-
-//выбор файла
-//gdb a.out -ex 'start' -ex 'disassemble'
-//gdb a.out -ex 'start' -ex 'i r'
 
 void MainWindow::on_actionOpen_executable_triggered()
 {
@@ -472,7 +482,7 @@ void MainWindow::openSelected(int nRow, int nCol)
         get_data_to_table_for_executable(value);
     }
     if (value.indexOf(".out") != -1) {
-        open_executable_window->hide();
+        open_executable_window->close();
         start_gdb(value);
     }
 }
@@ -487,5 +497,8 @@ void MainWindow::on_btn_send_clicked()
     ui->line_command->setText("");
 }
 
-
+void MainWindow::on_stopGdbBtn_clicked()
+{
+    stop_gdb();
+}
 

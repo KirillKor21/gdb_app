@@ -73,6 +73,10 @@ private:
     QTableWidget* table_for_executable;
     QString path_to_executable = "/";
 
+    // Окно gdb_gui
+    QTableWidget *table_disassembled_listing;
+    QTableWidget *table_registers;
+
     Ui::MainWindow *ui;
 
 private slots:
@@ -108,7 +112,10 @@ private slots:
 
     int start_gdb(QString program);
 
+    int stop_gdb();
+
     void on_actionOpen_executable_triggered();
     void on_btn_send_clicked();
+    void on_stopGdbBtn_clicked();
 };
 #endif // MAINWINDOW_H
