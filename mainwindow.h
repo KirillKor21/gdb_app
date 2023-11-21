@@ -77,6 +77,8 @@ private:
     QTableWidget *table_disassembled_listing;
     QTableWidget *table_registers;
 
+    int current_machine_command;
+
     Ui::MainWindow *ui;
 
 private slots:
@@ -108,6 +110,8 @@ private slots:
 
     int add_data_to_disassembled_listing();
 
+    int colorize_machine_command(int current_machine_command);
+
     int add_data_to_registers();
 
     int start_gdb(QString program);
@@ -117,5 +121,8 @@ private slots:
     void on_actionOpen_executable_triggered();
     void on_btn_send_clicked();
     void on_stopGdbBtn_clicked();
+    void on_nextBtn_clicked();
+
+    int reload_data();
 };
 #endif // MAINWINDOW_H

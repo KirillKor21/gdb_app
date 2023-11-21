@@ -266,6 +266,10 @@ int MainWindow::start_gdb(QString program)
     // Запуск программы/процесса в gdb
     current_command = "start";
     current_response = request_to_gdb_server(current_command);
+    //Переключение на первую машинную команду
+    QString current_command_step = "step";
+    QString current_response_step = request_to_gdb_server(current_command_step);
+    current_machine_command = 1;
 
     // парсинг ответа
     current_response = current_response.replace("(gdb)", "");
@@ -277,6 +281,9 @@ int MainWindow::start_gdb(QString program)
     // Заполнение виджетов
     add_data_to_disassembled_listing();
     add_data_to_registers();
+
+    //Окрашивание текущей строки
+    colorize_machine_command(current_machine_command);
 
     return 0;
 }
@@ -331,6 +338,20 @@ int MainWindow::add_data_to_disassembled_listing()
 
     return 0;
 }
+
+int MainWindow::colorize_machine_command(int current_machine_command)
+{
+    int row = current_machine_command; // номер строки на которой находится текущая машинная команда
+    int column_count = table_disassembled_listing->columnCount();
+
+    for (int column = 0; column < column_count; ++column) {
+        QTableWidgetItem *item = table_disassembled_listing->item(row, column);
+        item->setBackground(QColor(Qt::red));
+    }
+
+    return 0;
+}
+
 
 // Получение информации о регистрах
 int MainWindow::add_data_to_registers()
@@ -501,4 +522,35 @@ void MainWindow::on_stopGdbBtn_clicked()
 {
     stop_gdb();
 }
+
+
+void MainWindow::on_nextBtn_clicked()
+{
+    //Отменяем окрашивание предыдущей команды
+    int row = current_machine_command; // номер строки на которой находится текущая машинная команда
+    int column_count = table_disassembled_listing->columnCount();
+
+    for (int column = 0; column < column_count; ++column) {
+        QTableWidgetItem *item = table_disassembled_listing->item(row, column);
+        item->setBackground(QColor(Qt::white));
+    }
+    current_machine_command++;
+    colorize_machine_command(current_machine_command);
+    //Обновляем окна
+    reload_data();
+}
+
+int MainWindow::reload_data()
+{
+    // !!! Добавить сюда функции вызова стека и HEX, когда они появятся !!!
+    delete[] table_registers;
+    QString current_command_step = "step";
+    QString current_response_step = request_to_gdb_server(current_command_step);
+    qDebug() << "*********";
+    add_data_to_registers();
+    return 0;
+}
+
+
+
 
