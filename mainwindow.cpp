@@ -11,6 +11,8 @@
 #include <QVector>
 #include <QSignalMapper>
 #include <QSpacerItem>
+#include <QTcpSocket>
+#include <QHostAddress>
 
 MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::MainWindow)
 {
@@ -551,6 +553,48 @@ int MainWindow::reload_data()
     return 0;
 }
 
+int MainWindow::TCP_connection() {
+
+    // Создаем объект QTcpSocket
+    QTcpSocket socket;
+
+    // Соединяемся с сервером по указанному IP и порту
+    socket.connectToHost(QHostAddress("192.168.31.102"), 1234);
+
+    // Ждем, пока будет установлено соединение
+    if (socket.waitForConnected()) {
+        // Отправляем данные на сервер
+        socket.write("$?#3F");
+
+        // Ждем, пока данные будут отправлены
+        if (socket.waitForBytesWritten()) {
+            // Ждем, пока придет ответ от сервера
+            if (socket.waitForReadyRead()) {
+                // Считываем ответ
+                QByteArray responseData = socket.readAll();
+                qDebug() << "Response from server: " << responseData;
+            } else {
+                qDebug() << "Error waiting for response from server: " << socket.errorString();
+            }
+        } else {
+            qDebug() << "Error writing to server: " << socket.errorString();
+        }
+
+        // Закрываем соединение
+        socket.close();
+    } else {
+        qDebug() << "Error connecting to server: " << socket.errorString();
+    }
+
+    return 0;
+}
 
 
+
+
+
+void MainWindow::on_pushButton_clicked()
+{
+    TCP_connection();
+}
 

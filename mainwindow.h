@@ -55,7 +55,7 @@ private:
     QMessageBox *error;
 
 
-    int time_to_delay_mlsec = 700;
+    int time_to_delay_mlsec = 200;
 
     //Окно присоеденения к процессу
     QWidget *attach_to_process_window;
@@ -124,5 +124,8 @@ private slots:
     void on_nextBtn_clicked();
 
     int reload_data();
+
+    int TCP_connection();
+    void on_pushButton_clicked();
 };
 #endif // MAINWINDOW_H
