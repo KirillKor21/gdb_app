@@ -14,6 +14,7 @@
 #include <QTableWidget>
 #include <QHeaderView>
 #include <QRegularExpression>
+#include "QTcpSocket"
 
 QT_BEGIN_NAMESPACE
 namespace Ui { class MainWindow; }
@@ -76,6 +77,7 @@ private:
     // Окно gdb_gui
     QTableWidget *table_disassembled_listing;
     QTableWidget *table_registers;
+    QTcpSocket socket;
 
     int current_machine_command;
 
@@ -126,6 +128,7 @@ private slots:
     int reload_data();
 
     int TCP_connection();
+    int request_data_tcp(QString data);
     void on_pushButton_clicked();
 };
 #endif // MAINWINDOW_H

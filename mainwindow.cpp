@@ -22,6 +22,7 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::MainWi
 MainWindow::~MainWindow()
 {
     //sshProcess.kill();
+    socket.close();
     delete ui;
 }
 
@@ -512,16 +513,19 @@ void MainWindow::openSelected(int nRow, int nCol)
 
 void MainWindow::on_btn_send_clicked()
 {
-    QString current_command = ui->line_command->text();
-    QString current_response = request_to_gdb_server(current_command);
-    text_output->setText(text_output->text() + current_response);
-    qDebug() << current_response;
+    request_data_tcp(ui->line_command->text());
 
-    ui->line_command->setText("");
+//    QString current_command = ui->line_command->text();
+//    QString current_response = request_to_gdb_server(current_command);
+//    text_output->setText(text_output->text() + current_response);
+//    qDebug() << current_response;
+
+//    ui->line_command->setText("");
 }
 
 void MainWindow::on_stopGdbBtn_clicked()
 {
+    socket.close();
     stop_gdb();
 }
 
@@ -555,33 +559,47 @@ int MainWindow::reload_data()
 
 int MainWindow::TCP_connection() {
 
-    // Создаем объект QTcpSocket
-    QTcpSocket socket;
-
     // Соединяемся с сервером по указанному IP и порту
     socket.connectToHost(QHostAddress("192.168.31.102"), 1234);
 
     // Ждем, пока будет установлено соединение
     if (socket.waitForConnected()) {
+        QString command;
+        int local_delay = 50;
+        delay(local_delay);
+        command = "+";
+        socket.write(command.toUtf8());
+        delay(local_delay);
+        command = "$qSupported:multiprocess+;swbreak+;hwbreak+;qRelocInsn+;fork-events+;vfork-events+;exec-events+;vContSupported+;QThreadEvents+;no-resumed+;xmlRegisters=i386#6a";
+        socket.write(command.toUtf8());
+        delay(local_delay);
+        command = "+";
+        socket.write(command.toUtf8());
+        delay(local_delay);
+        command = "$vMustReplyEmpty#3a";
+        socket.write(command.toUtf8());
+        delay(local_delay);
+        command = "+";
+        socket.write(command.toUtf8());
+        delay(local_delay);
+        command = "$QStartNoAckMode#b0";
+        socket.write(command.toUtf8());
+        delay(local_delay);
+        command = "+";
+        socket.write(command.toUtf8());
+        delay(local_delay);
+        command = "$QProgramSignals:0;1;3;4;6;7;8;9;a;b;c;d;e;f;10;11;12;13;14;15;16;17;18;19;1a;1b;1c;1d;1e;1f;20;21;22;23;24;25;26;27;28;29;2a;2b;2c;2d;2e;2f;30;31;32;33;34;35;36;37;38;39;3a;3b;3c;3d;3e;3f;40;41;42;43;44;45;46;47;48;49;4a;4b;4c;4d;4e;4f;50;51;52;53;54;55;56;57;58;59;5a;5b;5c;5d;5e;5f;60;61;62;63;64;65;66;67;68;69;6a;6b;6c;6d;6e;6f;70;71;72;73;74;75;76;77;78;79;7a;7b;7c;7d;7e;7f;80;81;82;83;84;85;86;87;88;89;8a;8b;8c;8d;8e;8f;90;91;92;93;94;95;96;97;#75";
+        socket.write(command.toUtf8());
+        delay(local_delay);
+        command = "$Hgp0.0#ad";
+        socket.write(command.toUtf8());
+        delay(local_delay);
+        command = "$qXfer:features:read:target.xml:0,1000#0c";
+        socket.write(command.toUtf8());
+        delay(local_delay);
+        qDebug() << "TCP connection is success";
         // Отправляем данные на сервер
-        socket.write("$?#3F");
-
-        // Ждем, пока данные будут отправлены
-        if (socket.waitForBytesWritten()) {
-            // Ждем, пока придет ответ от сервера
-            if (socket.waitForReadyRead()) {
-                // Считываем ответ
-                QByteArray responseData = socket.readAll();
-                qDebug() << "Response from server: " << responseData;
-            } else {
-                qDebug() << "Error waiting for response from server: " << socket.errorString();
-            }
-        } else {
-            qDebug() << "Error writing to server: " << socket.errorString();
-        }
-
-        // Закрываем соединение
-        socket.close();
+        //request_data_tcp();
     } else {
         qDebug() << "Error connecting to server: " << socket.errorString();
     }
@@ -589,7 +607,29 @@ int MainWindow::TCP_connection() {
     return 0;
 }
 
+int MainWindow::request_data_tcp(QString data) {
 
+    socket.write(data.toUtf8());
+
+    // Ждем, пока данные будут отправлены
+    if (socket.waitForBytesWritten()) {
+        // Ждем, пока придет ответ от сервера
+        if (socket.waitForReadyRead()) {
+            // Считываем ответ
+            QByteArray responseData = socket.readAll();
+            qDebug() << "\n\nResponse from server: " << responseData << "\n\n";
+        } else {
+            qDebug() << "Error waiting for response from server: " << socket.errorString();
+        }
+    } else {
+        qDebug() << "Error writing to server: " << socket.errorString();
+    }
+
+    // Закрываем соединение
+    //socket.close();
+
+    return 0;
+}
 
 
 
