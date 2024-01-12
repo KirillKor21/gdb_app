@@ -14,7 +14,6 @@
 #include <QTableWidget>
 #include <QHeaderView>
 #include <QRegularExpression>
-#include "QTcpSocket"
 
 QT_BEGIN_NAMESPACE
 namespace Ui { class MainWindow; }
@@ -56,7 +55,7 @@ private:
     QMessageBox *error;
 
 
-    int time_to_delay_mlsec = 200;
+    int time_to_delay_mlsec = 700;
 
     //Окно присоеденения к процессу
     QWidget *attach_to_process_window;
@@ -77,14 +76,12 @@ private:
     // Окно gdb_gui
     QTableWidget *table_disassembled_listing;
     QTableWidget *table_registers;
-    QTcpSocket socket;
 
     int current_machine_command;
 
     Ui::MainWindow *ui;
 
 private slots:
-    QString calculateChecksum(QString str);
     int ssh_connection();
     int show_mainwindow();
     void delay(int time_to_wait_mlsec);
@@ -127,10 +124,5 @@ private slots:
     void on_nextBtn_clicked();
 
     int reload_data();
-
-    int TCP_connection();
-    int request_data_tcp(QString data);
-    void on_pushButton_clicked();
-
 };
 #endif // MAINWINDOW_H
