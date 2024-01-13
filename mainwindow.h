@@ -78,6 +78,7 @@ private:
     QTableWidget *table_registers;
 
     int current_machine_command;
+    bool isRunning = false;
 
     Ui::MainWindow *ui;
 
@@ -114,7 +115,7 @@ private slots:
 
     int add_data_to_registers();
 
-    int start_gdb(QString program);
+    int start_gdb(QString program, QString Pid, bool isProcess);
 
     int stop_gdb();
 
@@ -124,5 +125,7 @@ private slots:
     void on_nextBtn_clicked();
 
     int reload_data();
+    void on_startBtn_clicked();
+
 };
 #endif // MAINWINDOW_H

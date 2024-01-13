@@ -65,6 +65,7 @@ void MainWindow::show_connection_window() {
 
 int MainWindow::ssh_connection()
 {
+
     //Устанавливаем ip хоста и имя пользователя
     host_address = host_line_input->text();
     user_name = user_name_line_input->text();
@@ -72,6 +73,7 @@ int MainWindow::ssh_connection()
     // -T - отключает аллокацию псевдотерминала, что может помочь избежать ошибок
     // -o StrictHostKeyChecking=no - отключает проверку ключей хоста (для упрощения)
     //sshProcess.start("ssh", QStringList() << "-T" << "-o" << "StrictHostKeyChecking=no" << userName + "@" + hostAddress);\
+
 
     qDebug() << "Подключение...";
     sshProcess.start("ssh", QStringList() << "-T" << "-o" << "StrictHostKeyChecking=no" << user_name + "@" + host_address);
@@ -246,30 +248,49 @@ QWidget* MainWindow::create_widget_process(int id)
 
 int MainWindow::attach_to_process(int id)
 {
-    //qDebug() << "Функция attach_to_process, id кнопки - " << id;
-    //qDebug() << "PID процесса " << list_of_processes[id][0];
+    qDebug() << "Функция attach_to_process, id кнопки - " << id;
+    qDebug() << "PID процесса " << list_of_processes[id][0];
 
-    add_data_to_console(list_of_processes[id][0]);
+    delete [] attach_to_process_window;
+    start_gdb(nullptr, list_of_processes[id][0], true);
+
+
+    //add_data_to_console(list_of_processes[id][0]);
 
     return 0;
 }
 
 // Запуск gdb и заполнение виджетов
-int MainWindow::start_gdb(QString program)
+int MainWindow::start_gdb(QString program, QString Pid, bool isProcess)
 {
     text_output = new QLabel();
 
+
+    qDebug() << "start_gdb\n";
     // Запуск gdb
-    QString current_command = "gdb " + program;
+    QString current_command;
+    if (isProcess) {
+        current_command = "gdb attach " + Pid;
+    }
+    else {
+        current_command = "gdb " + program;
+    }
+
+
     QString current_response = request_to_gdb_server(current_command);
 
     // Запуск программы/процесса в gdb
-    current_command = "start";
-    current_response = request_to_gdb_server(current_command);
+    if (!isProcess) {
+        current_command = "start";
+        current_response = request_to_gdb_server(current_command);
+        QString current_command_step = "step";
+        QString current_response_step = request_to_gdb_server(current_command_step);
+    }
+
     //Переключение на первую машинную команду
-    QString current_command_step = "step";
-    QString current_response_step = request_to_gdb_server(current_command_step);
+
     current_machine_command = 1;
+    delay(time_to_delay_mlsec);
 
     // парсинг ответа
     current_response = current_response.replace("(gdb)", "");
@@ -279,6 +300,7 @@ int MainWindow::start_gdb(QString program)
     ui->scroll_area_output->setWidget(text_output);
 
     // Заполнение виджетов
+    qDebug() << "Заполнение виджитов:\n";
     add_data_to_disassembled_listing();
     add_data_to_registers();
 
@@ -307,9 +329,12 @@ int MainWindow::stop_gdb(){
 // Получение дизассемблированного листинга
 int MainWindow::add_data_to_disassembled_listing()
 {
+    qDebug() << "Функция add_data_to_disassembled_listing \n";
     // передача команды в gdb на получение дизассемблированного листинга
     QString current_command = "disassemble";
     QString current_response = request_to_gdb_server(current_command);
+    qDebug() << "current_response: \n" << current_response;
+
 
     // Создание таблицы для отображения ответа от gdb
     table_disassembled_listing = new QTableWidget();
@@ -322,6 +347,7 @@ int MainWindow::add_data_to_disassembled_listing()
     table_disassembled_listing->setEditTriggers(QAbstractItemView::NoEditTriggers);
     table_disassembled_listing->setShowGrid(false);
 
+    delay(time_to_delay_mlsec);
     // удаление лишней информации из ответа от gdb
     int ind = current_response.indexOf("=>");
     current_response = current_response.remove(0, ind + 2);
@@ -330,6 +356,7 @@ int MainWindow::add_data_to_disassembled_listing()
 
     // парсинг ответа от gdb
     QStringList list = current_response.split(QRegularExpression("[\t\n]"));
+
     for (int i = 0; i < list.length() - 1; i++)
         table_disassembled_listing->setItem(i / 2, i % 2, new QTableWidgetItem(list[i].trimmed()));
 
@@ -341,6 +368,7 @@ int MainWindow::add_data_to_disassembled_listing()
 
 int MainWindow::colorize_machine_command(int current_machine_command)
 {
+    qDebug() << "colorize_machine_command";
     int row = current_machine_command; // номер строки на которой находится текущая машинная команда
     int column_count = table_disassembled_listing->columnCount();
 
@@ -356,6 +384,8 @@ int MainWindow::colorize_machine_command(int current_machine_command)
 // Получение информации о регистрах
 int MainWindow::add_data_to_registers()
 {
+
+    qDebug() << "Функция add_data_to_registers \n";
     // передача команды в gdb на получение информации о регистрах
     QString current_command = "i r";
     QString current_response = request_to_gdb_server(current_command);
@@ -504,7 +534,7 @@ void MainWindow::openSelected(int nRow, int nCol)
     }
     if (value.indexOf(".out") != -1) {
         open_executable_window->close();
-        start_gdb(value);
+        start_gdb(value, nullptr, false);
     }
 }
 
@@ -544,7 +574,7 @@ int MainWindow::reload_data()
 {
     // !!! Добавить сюда функции вызова стека и HEX, когда они появятся !!!
     delete[] table_registers;
-    QString current_command_step = "step";
+    QString current_command_step = "stepi";
     QString current_response_step = request_to_gdb_server(current_command_step);
     qDebug() << "*********";
     add_data_to_registers();
@@ -553,4 +583,21 @@ int MainWindow::reload_data()
 
 
 
+
+
+void MainWindow::on_startBtn_clicked()
+{
+    qDebug() << "isRunning is " << isRunning;
+    if (isRunning) {
+        QString current_command_step = "break";
+        QString current_response_step = request_to_gdb_server(current_command_step);
+
+        reload_data();
+    }
+    else {
+        QString current_command_step = "step";
+        sshProcess.write(current_command_step.toUtf8() + "\n");
+        sshProcess.waitForBytesWritten();
+    }
+}
 
