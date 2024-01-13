@@ -283,13 +283,12 @@ int MainWindow::start_gdb(QString program, QString Pid, bool isProcess)
     if (!isProcess) {
         current_command = "start";
         current_response = request_to_gdb_server(current_command);
-        QString current_command_step = "step";
+        QString current_command_step = "stepi";
         QString current_response_step = request_to_gdb_server(current_command_step);
     }
 
     //Переключение на первую машинную команду
-
-    current_machine_command = 1;
+    current_machine_command = 0;
     delay(time_to_delay_mlsec);
 
     // парсинг ответа
@@ -318,7 +317,7 @@ int MainWindow::stop_gdb(){
     current_response = request_to_gdb_server(current_command);
 
     table_disassembled_listing->clear();
-    table_disassembled_listing->setHorizontalHeaderLabels(QStringList() << "Address" << "Assembly");
+    table_disassembled_listing->setHorizontalHeaderLabels(QStringList() << "" << "Address" << "Assembly");
     table_registers->clear();
     table_registers->setHorizontalHeaderLabels(QStringList() << "Register" << "Value" << "Address");
     text_output->setText("");
@@ -338,11 +337,13 @@ int MainWindow::add_data_to_disassembled_listing()
 
     // Создание таблицы для отображения ответа от gdb
     table_disassembled_listing = new QTableWidget();
-    table_disassembled_listing->setColumnCount(2);
+    table_disassembled_listing->setColumnCount(4);
     table_disassembled_listing->setRowCount(current_response.count("\n") - 2);
-    table_disassembled_listing->setHorizontalHeaderLabels(QStringList() << "Address" << "Assembly");
+    table_disassembled_listing->setHorizontalHeaderLabels(QStringList() << "" << "Address" << "Assembly");
     table_disassembled_listing->verticalHeader()->setVisible(false);
     table_disassembled_listing->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);
+    table_disassembled_listing->horizontalHeader()->setSectionResizeMode(0, QHeaderView::ResizeToContents);
+    table_disassembled_listing->setSelectionBehavior(QAbstractItemView::SelectRows);
     //table->verticalHeader()->setStretchLastSection(true);
     table_disassembled_listing->setEditTriggers(QAbstractItemView::NoEditTriggers);
     table_disassembled_listing->setShowGrid(false);
@@ -356,15 +357,66 @@ int MainWindow::add_data_to_disassembled_listing()
 
     // парсинг ответа от gdb
     QStringList list = current_response.split(QRegularExpression("[\t\n]"));
+    for (int i = 0; i < list.length() - 1; i+=2){
+        table_disassembled_listing->setItem(i / 2, 0, new QTableWidgetItem(" "));
+        table_disassembled_listing->setItem(i / 2, 1, new QTableWidgetItem(list[i].trimmed()));
+        table_disassembled_listing->setItem(i / 2, 2, new QTableWidgetItem(list[i+1].trimmed()));
+        table_disassembled_listing->setItem(i / 2, 3, new QTableWidgetItem(" "));
+    }
+    table_disassembled_listing->setItem(current_machine_command, 0, new QTableWidgetItem("  ⚫"));
+    table_disassembled_listing->setColumnHidden(3, true);
 
-    for (int i = 0; i < list.length() - 1; i++)
-        table_disassembled_listing->setItem(i / 2, i % 2, new QTableWidgetItem(list[i].trimmed()));
+    // добавление обработки нажатия на ячейки
+    connect(table_disassembled_listing, SIGNAL(cellClicked(int, int)), this, SLOT(setBreakpoint(int, int)));
+
 
     // отображение ответа от gdb
     ui->scroll_area_disassembled_listing->setWidget(table_disassembled_listing);
 
     return 0;
 }
+
+void MainWindow::setBreakpoint(int nRow, int nCol) {
+    if (nCol == 0){
+        // проверка стоит ли уже точка останова
+        if (table_disassembled_listing->item(nRow, nCol)->text() == "  ⚫"){
+            QString number = table_disassembled_listing->item(nRow, 3)->text();
+
+            // запрос на удаление точки останова
+            QString current_command = "delete " + number;
+            QString current_response = request_to_gdb_server(current_command);
+
+            table_disassembled_listing->setItem(nRow, 0, new QTableWidgetItem(" "));
+            table_disassembled_listing->setItem(nRow, 3, new QTableWidgetItem(" "));
+
+            // Отображение информации ответа gdb в поле Output
+            text_output->setText("Delete Breakpoint " + number + current_response);
+        } else {
+            // получение адреса
+            QString address = table_disassembled_listing->item(nRow, 1)->text();
+            int ind = address.indexOf(' ');
+            address = address.left(ind);
+            qDebug() << "BREAK: " << address;
+
+            // отображение символа точки останова
+            table_disassembled_listing->setItem(nRow, 0, new QTableWidgetItem("  ⚫"));\
+
+            // запрос на установку точки останова
+            QString current_command = "break *" + address;
+            QString current_response = request_to_gdb_server(current_command);
+
+            // сохранение номера точки останова
+            ind = current_response.indexOf(' ');
+            int ind_2 = current_response.indexOf(' ', ind + 1);
+            QString number = current_response.mid(ind + 1, ind_2 - ind - 1);
+            table_disassembled_listing->setItem(nRow, 3, new QTableWidgetItem(number));
+
+            // Отображение информации ответа gdb в поле Output
+            text_output->setText(current_response);
+        }
+    }
+}
+
 
 int MainWindow::colorize_machine_command(int current_machine_command)
 {
@@ -397,6 +449,7 @@ int MainWindow::add_data_to_registers()
     table_registers->setHorizontalHeaderLabels(QStringList() << "Register" << "Value" << "Address");
     table_registers->verticalHeader()->setVisible(false);
     table_registers->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);
+    table_registers->setSelectionBehavior(QAbstractItemView::SelectRows);
     //table->verticalHeader()->setStretchLastSection(true);
     table_registers->setEditTriggers(QAbstractItemView::NoEditTriggers);
     table_registers->setShowGrid(false);
@@ -595,7 +648,7 @@ void MainWindow::on_startBtn_clicked()
         reload_data();
     }
     else {
-        QString current_command_step = "step";
+        QString current_command_step = "stepi";
         sshProcess.write(current_command_step.toUtf8() + "\n");
         sshProcess.waitForBytesWritten();
     }

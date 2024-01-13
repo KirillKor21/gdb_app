@@ -99,6 +99,8 @@ private slots:
 
     void openSelected(int nRow, int nCol);
 
+    void setBreakpoint(int nRow, int nCol);
+
     int get_processes();
 
     QWidget *create_widget_process(int id);
