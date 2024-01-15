@@ -432,6 +432,20 @@ int MainWindow::colorize_machine_command(int current_machine_command)
     return 0;
 }
 
+int MainWindow::not_colorize_machine_command()
+{
+    //Отменяем окрашивание предыдущей команды
+    int row = current_machine_command; // номер строки на которой находится текущая машинная команда
+    int column_count = table_disassembled_listing->columnCount();
+
+    for (int column = 0; column < column_count; ++column) {
+        QTableWidgetItem *item = table_disassembled_listing->item(row, column);
+        item->setBackground(QColor(Qt::white));
+    }
+
+    return 0;
+}
+
 
 // Получение информации о регистрах
 int MainWindow::add_data_to_registers()
@@ -610,15 +624,11 @@ void MainWindow::on_stopGdbBtn_clicked()
 void MainWindow::on_nextBtn_clicked()
 {
     //Отменяем окрашивание предыдущей команды
-    int row = current_machine_command; // номер строки на которой находится текущая машинная команда
-    int column_count = table_disassembled_listing->columnCount();
-
-    for (int column = 0; column < column_count; ++column) {
-        QTableWidgetItem *item = table_disassembled_listing->item(row, column);
-        item->setBackground(QColor(Qt::white));
-    }
+    not_colorize_machine_command();
+    // Окрашиваем следующую команду
     current_machine_command++;
     colorize_machine_command(current_machine_command);
+
     //Обновляем окна
     reload_data();
 }
@@ -635,12 +645,11 @@ int MainWindow::reload_data()
 }
 
 
-
-
-
 void MainWindow::on_startBtn_clicked()
 {
-    qDebug() << "isRunning is " << isRunning;
+    continue_execution();
+
+    /*qDebug() << "isRunning is " << isRunning;
     if (isRunning) {
         QString current_command_step = "break";
         QString current_response_step = request_to_gdb_server(current_command_step);
@@ -651,6 +660,37 @@ void MainWindow::on_startBtn_clicked()
         QString current_command_step = "stepi";
         sshProcess.write(current_command_step.toUtf8() + "\n");
         sshProcess.waitForBytesWritten();
+    }*/
+}
+
+int MainWindow::continue_execution()
+{
+    // запрос на продолжение выполнения
+    QString current_command = "c";
+    QString current_response = request_to_gdb_server(current_command);
+    text_output->setText(text_output->text() + current_response);
+
+    // окрашивание команды, на которой остановилось выполнение
+    int row_count = table_disassembled_listing->rowCount();
+    for (int i = 1; i < row_count; i++) {
+        if (i != current_machine_command){
+            QString text = table_disassembled_listing->item(i, 0)->text();
+            if (text == "  ⚫") {
+                //Отменяем окрашивание предыдущей команды
+                not_colorize_machine_command();
+
+                // окрашиваем новую команду
+                current_machine_command = i;
+                colorize_machine_command(current_machine_command);
+                break;
+            }
+        }
     }
+
+    // замена значение регистров
+    delete[] table_registers;
+    add_data_to_registers();
+
+    return 0;
 }
 

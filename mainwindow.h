@@ -114,6 +114,7 @@ private slots:
     int add_data_to_disassembled_listing();
 
     int colorize_machine_command(int current_machine_command);
+    int not_colorize_machine_command();
 
     int add_data_to_registers();
 
@@ -129,5 +130,6 @@ private slots:
     int reload_data();
     void on_startBtn_clicked();
 
+    int continue_execution();
 };
 #endif // MAINWINDOW_H
