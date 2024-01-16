@@ -13,7 +13,6 @@
 #include <QScrollArea>
 #include <QTableWidget>
 #include <QHeaderView>
-#include <QRegularExpression>
 
 QT_BEGIN_NAMESPACE
 namespace Ui { class MainWindow; }
@@ -78,6 +77,7 @@ private:
     QTableWidget *table_registers;
 
     int current_machine_command;
+    QString endpoint;
     bool isRunning = false;
 
     Ui::MainWindow *ui;
@@ -113,7 +113,7 @@ private slots:
 
     int add_data_to_disassembled_listing();
 
-    int colorize_machine_command(int current_machine_command);
+    int colorize_machine_command(QString address_machine_command);
     int not_colorize_machine_command();
 
     int add_data_to_registers();
@@ -122,14 +122,19 @@ private slots:
 
     int stop_gdb();
 
+    int  completion_processing();
+    int restart_program();
+
     void on_actionOpen_executable_triggered();
     void on_btn_send_clicked();
     void on_stopGdbBtn_clicked();
     void on_nextBtn_clicked();
-
+    int step_execution();
     int reload_data();
     void on_startBtn_clicked();
 
     int continue_execution();
+
+    QString get_address(QString text);
 };
 #endif // MAINWINDOW_H

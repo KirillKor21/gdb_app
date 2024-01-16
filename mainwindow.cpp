@@ -11,6 +11,8 @@
 #include <QVector>
 #include <QSignalMapper>
 #include <QSpacerItem>
+#include <QRegularExpression>
+#include <QRegularExpressionMatch>
 
 MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::MainWindow)
 {
@@ -299,12 +301,15 @@ int MainWindow::start_gdb(QString program, QString Pid, bool isProcess)
     ui->scroll_area_output->setWidget(text_output);
 
     // Заполнение виджетов
-    qDebug() << "Заполнение виджитов:\n";
+    qDebug() << "Заполнение виджетов:\n";
     add_data_to_disassembled_listing();
     add_data_to_registers();
 
     //Окрашивание текущей строки
-    colorize_machine_command(current_machine_command);
+    for (int column = 0; column < 3; ++column) {
+        QTableWidgetItem *item = table_disassembled_listing->item(current_machine_command, column);
+        item->setBackground(QColor(Qt::red));
+    }
 
     return 0;
 }
@@ -328,17 +333,18 @@ int MainWindow::stop_gdb(){
 // Получение дизассемблированного листинга
 int MainWindow::add_data_to_disassembled_listing()
 {
-    qDebug() << "Функция add_data_to_disassembled_listing \n";
+    qDebug() << "Function: add_data_to_disassembled_listing";
+
     // передача команды в gdb на получение дизассемблированного листинга
     QString current_command = "disassemble";
     QString current_response = request_to_gdb_server(current_command);
     qDebug() << "current_response: \n" << current_response;
 
-
     // Создание таблицы для отображения ответа от gdb
     table_disassembled_listing = new QTableWidget();
     table_disassembled_listing->setColumnCount(4);
-    table_disassembled_listing->setRowCount(current_response.count("\n") - 2);
+    int rows = current_response.count("\n") - 3;
+    table_disassembled_listing->setRowCount(rows);
     table_disassembled_listing->setHorizontalHeaderLabels(QStringList() << "" << "Address" << "Assembly");
     table_disassembled_listing->verticalHeader()->setVisible(false);
     table_disassembled_listing->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);
@@ -349,6 +355,7 @@ int MainWindow::add_data_to_disassembled_listing()
     table_disassembled_listing->setShowGrid(false);
 
     delay(time_to_delay_mlsec);
+
     // удаление лишней информации из ответа от gdb
     int ind = current_response.indexOf("=>");
     current_response = current_response.remove(0, ind + 2);
@@ -363,8 +370,9 @@ int MainWindow::add_data_to_disassembled_listing()
         table_disassembled_listing->setItem(i / 2, 2, new QTableWidgetItem(list[i+1].trimmed()));
         table_disassembled_listing->setItem(i / 2, 3, new QTableWidgetItem(" "));
     }
-    table_disassembled_listing->setItem(current_machine_command, 0, new QTableWidgetItem("  ⚫"));
+    //table_disassembled_listing->setItem(current_machine_command, 0, new QTableWidgetItem("  ⚫"));
     table_disassembled_listing->setColumnHidden(3, true);
+    endpoint = get_address(table_disassembled_listing->item(rows - 1, 1)->text());
 
     // добавление обработки нажатия на ячейки
     connect(table_disassembled_listing, SIGNAL(cellClicked(int, int)), this, SLOT(setBreakpoint(int, int)));
@@ -377,6 +385,8 @@ int MainWindow::add_data_to_disassembled_listing()
 }
 
 void MainWindow::setBreakpoint(int nRow, int nCol) {
+    qDebug() << "Function: setBreakpoint";
+
     if (nCol == 0){
         // проверка стоит ли уже точка останова
         if (table_disassembled_listing->item(nRow, nCol)->text() == "  ⚫"){
@@ -418,16 +428,26 @@ void MainWindow::setBreakpoint(int nRow, int nCol) {
 }
 
 
-int MainWindow::colorize_machine_command(int current_machine_command)
+int MainWindow::colorize_machine_command(QString address_machine_command)
 {
-    qDebug() << "colorize_machine_command";
-    int row = current_machine_command; // номер строки на которой находится текущая машинная команда
-    int column_count = table_disassembled_listing->columnCount();
+    qDebug() << "Function: colorize_machine_command";
 
-    for (int column = 0; column < column_count; ++column) {
-        QTableWidgetItem *item = table_disassembled_listing->item(row, column);
-        item->setBackground(QColor(Qt::red));
+    // поиск в дизассемблированном листинге адреса текущей машинной команды
+    int row_count = table_disassembled_listing->rowCount();
+    for (int row = 0; row < row_count - 1; row++) {
+        QString text = table_disassembled_listing->item(row, 1)->text();
+        if (text.contains(address_machine_command)){
+            // окрашивание
+            for (int column = 0; column < 3; ++column) {
+                QTableWidgetItem *item = table_disassembled_listing->item(row, column);
+                item->setBackground(QColor(Qt::red));
+            }
+            current_machine_command = row;
+            break;
+        }
     }
+    //int row = current_machine_command; // номер строки на которой находится текущая машинная команда
+    //int column_count = table_disassembled_listing->columnCount();
 
     return 0;
 }
@@ -623,24 +643,43 @@ void MainWindow::on_stopGdbBtn_clicked()
 
 void MainWindow::on_nextBtn_clicked()
 {
-    //Отменяем окрашивание предыдущей команды
-    not_colorize_machine_command();
-    // Окрашиваем следующую команду
-    current_machine_command++;
-    colorize_machine_command(current_machine_command);
-
-    //Обновляем окна
-    reload_data();
+    step_execution();
 }
 
-int MainWindow::reload_data()
+// Пошаговое выполнение
+int MainWindow::step_execution()
 {
-    // !!! Добавить сюда функции вызова стека и HEX, когда они появятся !!!
-    delete[] table_registers;
+    qDebug() << "Function: step_execution";
+
+    // запрос на пошаговое выполнение
     QString current_command_step = "stepi";
     QString current_response_step = request_to_gdb_server(current_command_step);
-    qDebug() << "*********";
+
+    // проверка на случай завершения выполнения файла
+    if (current_response_step.contains(endpoint)) {
+        completion_processing();
+    } else {
+        //Отменяем окрашивание предыдущей команды
+        not_colorize_machine_command();
+        // Окрашиваем следующую команду
+        colorize_machine_command(get_address(current_response_step));
+
+        // обновляем данные
+        reload_data();
+    }
+
+    return 0;
+}
+
+// Обновление данных в таблицах
+int MainWindow::reload_data()
+{
+    qDebug() << "Function: reload_data";
+
+    // !!! Добавить сюда функции вызова стека и HEX, когда они появятся !!!
+    delete[] table_registers;
     add_data_to_registers();
+
     return 0;
 }
 
@@ -663,34 +702,90 @@ void MainWindow::on_startBtn_clicked()
     }*/
 }
 
+// Продолжение выпонения
 int MainWindow::continue_execution()
 {
+    qDebug() << "Function: continue_execution";
+
     // запрос на продолжение выполнения
     QString current_command = "c";
     QString current_response = request_to_gdb_server(current_command);
-    text_output->setText(text_output->text() + current_response);
 
-    // окрашивание команды, на которой остановилось выполнение
-    int row_count = table_disassembled_listing->rowCount();
-    for (int i = 1; i < row_count; i++) {
-        if (i != current_machine_command){
-            QString text = table_disassembled_listing->item(i, 0)->text();
-            if (text == "  ⚫") {
-                //Отменяем окрашивание предыдущей команды
-                not_colorize_machine_command();
+    // проверка на случай завершения выполнения файла
+    if (current_response.contains("exited normally]")) {
+        completion_processing();
+    } else {
+        text_output->setText(text_output->text() + current_response);
 
-                // окрашиваем новую команду
-                current_machine_command = i;
-                colorize_machine_command(current_machine_command);
-                break;
-            }
-        }
+        // окрашивание команды, на которой остановилось выполнение
+        not_colorize_machine_command();
+        colorize_machine_command(get_address(current_response));
+
+        // замена значение регистров
+        delete[] table_registers;
+        add_data_to_registers();
     }
+    return 0;
+}
 
-    // замена значение регистров
-    delete[] table_registers;
-    add_data_to_registers();
+// Обработка завершения программы
+int MainWindow::completion_processing()
+{
+    qDebug() << "Function: completion_processing";
+
+    QMessageBox msgBox;
+    msgBox.setWindowTitle("Выполнение завершено");
+    msgBox.setText("Исполняемый файл закончил выполнение. Выгрузить его из памяти?");
+    msgBox.setStandardButtons(QMessageBox::Yes | QMessageBox::No);
+    msgBox.setDefaultButton(QMessageBox::Yes);
+
+    int result = msgBox.exec();
+
+    QString current_command = "start";
+    QString current_response = request_to_gdb_server(current_command);
+
+    if (result == QMessageBox::Yes) {
+        stop_gdb();
+    } else {
+        restart_program();
+    }
 
     return 0;
 }
 
+// Перезапуск исполняемого файла после завершения
+int MainWindow::restart_program()
+{
+    qDebug() << "Function: restart_program";
+
+    //Переключение на первую машинную команду
+    QString current_command_step = "stepi";
+    QString current_response_step = request_to_gdb_server(current_command_step);
+    current_machine_command = 0;
+    delay(time_to_delay_mlsec);
+
+    // Перезаполнение виджетов
+    delete[] table_disassembled_listing;
+    add_data_to_disassembled_listing();
+    reload_data();
+
+    //Окрашивание текущей строки
+    for (int column = 0; column < 3; ++column) {
+        QTableWidgetItem *item = table_disassembled_listing->item(current_machine_command, column);
+        item->setBackground(QColor(Qt::red));
+    }
+
+    return 0;
+}
+
+// Получение адреса из строки
+QString MainWindow::get_address(QString text)
+{
+    qDebug() << "Function: get_address";
+
+    QRegularExpression regex("\\b0x\\w+\\b");
+    QRegularExpressionMatch match = regex.match(text);
+    qDebug() << "Адрес: " << match.captured();
+
+    return match.captured();
+}
