@@ -297,7 +297,7 @@ int MainWindow::start_gdb(QString program, QString Pid, bool isProcess)
     current_response = current_response.replace("(gdb)", "");
 
     // Отображение информации по запуску в поле Output
-    text_output->setText(current_response);
+    //text_output->setText(current_response);
     ui->scroll_area_output->setWidget(text_output);
 
     // Заполнение виджетов
@@ -316,6 +316,12 @@ int MainWindow::start_gdb(QString program, QString Pid, bool isProcess)
 
 // Остановка gdb и очистка виджетов
 int MainWindow::stop_gdb(){
+    if (finish) {
+        finish = false;
+        QString current_command = "start";
+        QString current_response = request_to_gdb_server(current_command);
+    }
+
     QString current_command = "quit";
     QString current_response = request_to_gdb_server(current_command);
     current_command = "Y";
@@ -400,7 +406,7 @@ void MainWindow::setBreakpoint(int nRow, int nCol) {
             table_disassembled_listing->setItem(nRow, 3, new QTableWidgetItem(" "));
 
             // Отображение информации ответа gdb в поле Output
-            text_output->setText("Delete Breakpoint " + number + current_response);
+            //text_output->setText("Delete Breakpoint " + number + current_response);
         } else {
             // получение адреса
             QString address = table_disassembled_listing->item(nRow, 1)->text();
@@ -422,7 +428,7 @@ void MainWindow::setBreakpoint(int nRow, int nCol) {
             table_disassembled_listing->setItem(nRow, 3, new QTableWidgetItem(number));
 
             // Отображение информации ответа gdb в поле Output
-            text_output->setText(current_response);
+            //text_output->setText(current_response);
         }
     }
 }
@@ -655,18 +661,26 @@ int MainWindow::step_execution()
     QString current_command_step = "stepi";
     QString current_response_step = request_to_gdb_server(current_command_step);
 
+    text_output->setText(text_output->text() + "Step to " + current_response_step.replace("(gdb) ", ""));
+
     // проверка на случай завершения выполнения файла
     if (current_response_step.contains(endpoint)) {
-        completion_processing();
-    } else {
-        //Отменяем окрашивание предыдущей команды
-        not_colorize_machine_command();
-        // Окрашиваем следующую команду
-        colorize_machine_command(get_address(current_response_step));
+        finish = true;
+        continue_execution();
+        colorize_machine_command(endpoint);
+    } else
+        if (finish) {
+            finish = false;
+            completion_processing();
+        } else {
+            //Отменяем окрашивание предыдущей команды
+            not_colorize_machine_command();
+            // Окрашиваем следующую команду
+            colorize_machine_command(get_address(current_response_step));
 
-        // обновляем данные
-        reload_data();
-    }
+            // обновляем данные
+            reload_data();
+        }
 
     return 0;
 }
@@ -711,20 +725,25 @@ int MainWindow::continue_execution()
     QString current_command = "c";
     QString current_response = request_to_gdb_server(current_command);
 
+    text_output->setText(text_output->text() + current_response.replace("(gdb) ", ""));
+
     // проверка на случай завершения выполнения файла
     if (current_response.contains("exited normally]")) {
-        completion_processing();
-    } else {
-        text_output->setText(text_output->text() + current_response);
+        finish = true;
+        colorize_machine_command(endpoint);
+    } else
+        if (finish) {
+            finish = false;
+            completion_processing();
+        } else {
+            // окрашивание команды, на которой остановилось выполнение
+            not_colorize_machine_command();
+            colorize_machine_command(get_address(current_response));
 
-        // окрашивание команды, на которой остановилось выполнение
-        not_colorize_machine_command();
-        colorize_machine_command(get_address(current_response));
-
-        // замена значение регистров
-        delete[] table_registers;
-        add_data_to_registers();
-    }
+            // замена значение регистров
+            delete[] table_registers;
+            add_data_to_registers();
+        }
     return 0;
 }
 
@@ -767,6 +786,7 @@ int MainWindow::restart_program()
     // Перезаполнение виджетов
     delete[] table_disassembled_listing;
     add_data_to_disassembled_listing();
+    text_output->setText("");
     reload_data();
 
     //Окрашивание текущей строки

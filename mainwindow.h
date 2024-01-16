@@ -79,6 +79,7 @@ private:
     int current_machine_command;
     QString endpoint;
     bool isRunning = false;
+    bool finish = false;
 
     Ui::MainWindow *ui;
 
