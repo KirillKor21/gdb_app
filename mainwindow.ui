@@ -32,11 +32,11 @@
            </widget>
           </item>
           <item>
-           <widget class="QScrollArea" name="scrollArea_2">
+           <widget class="QScrollArea" name="scrollAreaMemory">
             <property name="widgetResizable">
              <bool>true</bool>
             </property>
-            <widget class="QWidget" name="scrollAreaWidgetContents_2">
+            <widget class="QWidget" name="scrollAreaWidgetMemory">
              <property name="geometry">
               <rect>
                <x>0</x>
@@ -186,9 +186,6 @@
          <layout class="QGridLayout" name="gridLayout_4">
           <item row="0" column="2">
            <widget class="QPushButton" name="stopGdbBtn">
-            <property name="toolTip">
-             <string>Выгрузить исполняемый файл</string>
-            </property>
             <property name="text">
              <string>✖</string>
             </property>
@@ -196,9 +193,6 @@
           </item>
           <item row="0" column="1">
            <widget class="QPushButton" name="startBtn">
-            <property name="toolTip">
-             <string>Продолжить выполнение</string>
-            </property>
             <property name="text">
              <string>ᐅI</string>
             </property>
@@ -206,9 +200,6 @@
           </item>
           <item row="0" column="0">
            <widget class="QPushButton" name="nextBtn">
-            <property name="toolTip">
-             <string>Пошаговое выполнение</string>
-            </property>
             <property name="text">
              <string>ᐅ</string>
             </property>

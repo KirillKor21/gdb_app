@@ -70,6 +70,7 @@ private:
     QWidget* open_executable_window;
     QScrollArea* scroll_area_for_executable;
     QTableWidget* table_for_executable;
+    QTableWidget* table_memory;
     QString path_to_executable = "/";
 
     // Окно gdb_gui
@@ -79,7 +80,6 @@ private:
     int current_machine_command;
     QString endpoint;
     bool isRunning = false;
-    bool finish = false;
 
     Ui::MainWindow *ui;
 
@@ -95,6 +95,8 @@ private slots:
     int show_open_executable_window();
 
     int add_data_to_table_for_executable(QString data);
+
+    int add_data_to_memory();
 
     void get_data_to_table_for_executable(QString value);
 

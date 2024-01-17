@@ -14,6 +14,7 @@
 #include <QRegularExpression>
 #include <QRegularExpressionMatch>
 
+
 MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::MainWindow)
 {
     ui->setupUi(this);
@@ -297,13 +298,14 @@ int MainWindow::start_gdb(QString program, QString Pid, bool isProcess)
     current_response = current_response.replace("(gdb)", "");
 
     // Отображение информации по запуску в поле Output
-    //text_output->setText(current_response);
+    text_output->setText(current_response);
     ui->scroll_area_output->setWidget(text_output);
 
     // Заполнение виджетов
     qDebug() << "Заполнение виджетов:\n";
     add_data_to_disassembled_listing();
     add_data_to_registers();
+    add_data_to_memory();
 
     //Окрашивание текущей строки
     for (int column = 0; column < 3; ++column) {
@@ -316,12 +318,6 @@ int MainWindow::start_gdb(QString program, QString Pid, bool isProcess)
 
 // Остановка gdb и очистка виджетов
 int MainWindow::stop_gdb(){
-    if (finish) {
-        finish = false;
-        QString current_command = "start";
-        QString current_response = request_to_gdb_server(current_command);
-    }
-
     QString current_command = "quit";
     QString current_response = request_to_gdb_server(current_command);
     current_command = "Y";
@@ -406,7 +402,7 @@ void MainWindow::setBreakpoint(int nRow, int nCol) {
             table_disassembled_listing->setItem(nRow, 3, new QTableWidgetItem(" "));
 
             // Отображение информации ответа gdb в поле Output
-            //text_output->setText("Delete Breakpoint " + number + current_response);
+            text_output->setText("Delete Breakpoint " + number + current_response);
         } else {
             // получение адреса
             QString address = table_disassembled_listing->item(nRow, 1)->text();
@@ -428,7 +424,7 @@ void MainWindow::setBreakpoint(int nRow, int nCol) {
             table_disassembled_listing->setItem(nRow, 3, new QTableWidgetItem(number));
 
             // Отображение информации ответа gdb в поле Output
-            //text_output->setText(current_response);
+            text_output->setText(current_response);
         }
     }
 }
@@ -597,6 +593,65 @@ int MainWindow::add_data_to_table_for_executable(QString data)
     return 0;
 }
 
+int MainWindow::add_data_to_memory()
+{
+    qDebug() << "add_data_to_memory";
+
+    QString current_command = "info proc mappings";
+    QString current_response = request_to_gdb_server(current_command);
+    QStringList temp_str = current_response.split("\n");
+    qDebug() << "current_response" << temp_str;
+    //temp_str[5].split(" ")[0];
+    qDebug() << "first_address is " << temp_str[4].split(" ")[6];
+    QString first_address = temp_str[4].split(" ")[6];
+
+    current_command = "x/4096xb" + first_address;
+    current_response = request_to_gdb_server(current_command).replace(":", "");
+
+    // Разделение строки на подстроки по символу перехода на новую строку
+    QStringList rows = current_response.split("\n");
+
+    // Создание двумерного массива
+    QStringList matrix;
+    for (const QString& row : rows) {
+        // Разделение строки на подстроки по символу табуляции
+        QStringList columns = row.split("\t");
+        // Добавление подстрок в двумерный массив
+        matrix.append(columns);
+    }
+    qDebug() << "matrix" << matrix;
+
+    // Создание таблицы
+    table_memory = new QTableWidget();
+    // Создание таблицы для отображения ответа от gdb
+    table_memory->setRowCount(matrix.size()/9 + 1);
+    table_memory->setColumnCount(9);
+    table_memory->setHorizontalHeaderLabels(QStringList() << "Address" << "0x0" << "0x1" << "0x2" << "0x3" << "0x4" << "0x5" << "0x6" << "0x7");
+    table_memory->verticalHeader()->setVisible(false);
+    //table_memory->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);
+    table_memory->setSelectionBehavior(QAbstractItemView::SelectRows);
+    table_memory->verticalHeader()->setStretchLastSection(true);
+    table_memory->setEditTriggers(QAbstractItemView::NoEditTriggers);
+    table_memory->setShowGrid(false);
+
+
+    // Заполнение таблицы данными из matrix
+    for (int i = 0; i < matrix.size(); ++i) {
+        QStringList row = matrix[i].split(" ");
+        for (int j = 0; j < row.size(); ++j) {
+            QTableWidgetItem* item = new QTableWidgetItem(row[j]);
+            if (i % 9 == 0) {
+                item->setBackground(QColor(128,155,255,150));
+            }
+            table_memory->setItem(j, i, item);
+        }
+    }
+
+
+    ui->scrollAreaMemory->setWidget(table_memory);
+    return 0;
+}
+
 void MainWindow::get_data_to_table_for_executable(QString dir)
 {
     // Переход в директорию и получение списка файлов
@@ -661,26 +716,18 @@ int MainWindow::step_execution()
     QString current_command_step = "stepi";
     QString current_response_step = request_to_gdb_server(current_command_step);
 
-    text_output->setText(text_output->text() + "Step to " + current_response_step.replace("(gdb) ", ""));
-
     // проверка на случай завершения выполнения файла
     if (current_response_step.contains(endpoint)) {
-        finish = true;
-        continue_execution();
-        colorize_machine_command(endpoint);
-    } else
-        if (finish) {
-            finish = false;
-            completion_processing();
-        } else {
-            //Отменяем окрашивание предыдущей команды
-            not_colorize_machine_command();
-            // Окрашиваем следующую команду
-            colorize_machine_command(get_address(current_response_step));
+        completion_processing();
+    } else {
+        //Отменяем окрашивание предыдущей команды
+        not_colorize_machine_command();
+        // Окрашиваем следующую команду
+        colorize_machine_command(get_address(current_response_step));
 
-            // обновляем данные
-            reload_data();
-        }
+        // обновляем данные
+        reload_data();
+    }
 
     return 0;
 }
@@ -725,25 +772,20 @@ int MainWindow::continue_execution()
     QString current_command = "c";
     QString current_response = request_to_gdb_server(current_command);
 
-    text_output->setText(text_output->text() + current_response.replace("(gdb) ", ""));
-
     // проверка на случай завершения выполнения файла
     if (current_response.contains("exited normally]")) {
-        finish = true;
-        colorize_machine_command(endpoint);
-    } else
-        if (finish) {
-            finish = false;
-            completion_processing();
-        } else {
-            // окрашивание команды, на которой остановилось выполнение
-            not_colorize_machine_command();
-            colorize_machine_command(get_address(current_response));
+        completion_processing();
+    } else {
+        text_output->setText(text_output->text() + current_response);
 
-            // замена значение регистров
-            delete[] table_registers;
-            add_data_to_registers();
-        }
+        // окрашивание команды, на которой остановилось выполнение
+        not_colorize_machine_command();
+        colorize_machine_command(get_address(current_response));
+
+        // замена значение регистров
+        delete[] table_registers;
+        add_data_to_registers();
+    }
     return 0;
 }
 
@@ -786,7 +828,6 @@ int MainWindow::restart_program()
     // Перезаполнение виджетов
     delete[] table_disassembled_listing;
     add_data_to_disassembled_listing();
-    text_output->setText("");
     reload_data();
 
     //Окрашивание текущей строки
